@@ -99,7 +99,9 @@ let targetColor=null, score=0, lives=3, speed=2, gameOver=false;
 let paused=false, countdownActive=false, gameStarted=false;
 let lastScores=JSON.parse(localStorage.getItem("lastScores"))||[];
 let bestScore=parseInt(localStorage.getItem("bestScore"))||0;
-let nextLifeThreshold=50; // +1 life at 50, 100, 150, ...
+let nextGoldenThreshold=50; // Golden ball at 50, 100, 150, ...
+let speedModifierFactor=1; // temporary slowdowns multiply base speed
+let speedModifierUntil=0; // timestamp (ms) until which modifier is active
 
 // Audio
 let pointSound=new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
@@ -232,8 +234,30 @@ function clampBasket(){
 
 // Draw
 function drawBasket(){ ctx.fillStyle=basket.color; ctx.fillRect(basket.x,basket.y,basket.w,basket.h);} 
-function drawBalls(){ balls.forEach(b=>{ ctx.beginPath();ctx.arc(b.x,b.y,10,0,Math.PI*2); ctx.fillStyle=b.color; ctx.fill(); }); }
-function spawnBall(){ balls.push({x:Math.random()*(canvas.width-20)+10,y:0,color:colors[Math.floor(Math.random()*colors.length)]}); }
+function drawBalls(){
+    balls.forEach(b=>{
+        ctx.save();
+        if(b.special==='gold'){
+            const r=12;
+            const gradient=ctx.createRadialGradient(b.x,b.y,2,b.x,b.y,r);
+            gradient.addColorStop(0,'#fff7a8');
+            gradient.addColorStop(0.6,'#ffd700');
+            gradient.addColorStop(1,'#b8860b');
+            ctx.shadowColor='rgba(255,215,0,0.8)';
+            ctx.shadowBlur=20;
+            ctx.beginPath(); ctx.arc(b.x,b.y,r,0,Math.PI*2);
+            ctx.fillStyle=gradient; ctx.fill();
+        } else {
+            ctx.beginPath();ctx.arc(b.x,b.y,10,0,Math.PI*2); ctx.fillStyle=b.color; ctx.fill();
+        }
+        ctx.restore();
+    });
+}
+function spawnBall(){ balls.push({x:Math.random()*(canvas.width-20)+10,y:0,color:colors[Math.floor(Math.random()*colors.length)], special:null}); }
+function spawnGoldenBall(){
+    const x=Math.random()*(canvas.width-24)+12;
+    balls.push({x:x,y:0,color:'#ffd700', special:'gold'});
+}
 function drawHUD(){ ctx.fillStyle="white"; ctx.font="16px Arial"; ctx.fillText("Score: "+score,10,20); ctx.fillText("Lives: "+lives,10,40); ctx.fillText("Target: "+(targetColor||"None"),10,60); }
 
 // Game Over
@@ -249,10 +273,10 @@ function showGameOver(){
     localStorage.setItem("bestScore",bestScore);
 }
 
-function checkLifeAward(){
-    while(score>=nextLifeThreshold){
-        lives++;
-        nextLifeThreshold+=50;
+function checkGoldenSpawn(){
+    while(score>=nextGoldenThreshold){
+        spawnGoldenBall();
+        nextGoldenThreshold+=50;
     }
 }
 
@@ -262,8 +286,21 @@ function updateBalls(){
     for(let i=balls.length-1;i>=0;i--){
         let b=balls[i];
         if(b.y+10>=basket.y && b.y-10<=basket.y+basket.h && b.x+10>=basket.x && b.x-10<=basket.x+basket.w){
-            if(!targetColor){ targetColor=b.color; basket.color=b.color; score++; pointSound.play(); checkLifeAward(); }
-            else if(b.color===targetColor){ score++; pointSound.play(); checkLifeAward(); }
+            if(b.special==='gold'){
+                // Random effect: +1 life OR slow speed by 15% for 6s OR +10 points
+                const roll=Math.random();
+                if(roll<0.34){
+                    lives++;
+                } else if(roll<0.67){
+                    speedModifierFactor*=0.85; // slow 15%
+                    speedModifierUntil=performance.now()+6000; // 6 seconds
+                } else {
+                    score+=10;
+                    checkGoldenSpawn();
+                }
+                pointSound.play();
+            } else if(!targetColor){ targetColor=b.color; basket.color=b.color; score++; pointSound.play(); checkGoldenSpawn(); }
+            else if(b.color===targetColor){ score++; pointSound.play(); checkGoldenSpawn(); }
             else { lives--; mistakeSound.play(); flashScreen(); }
             balls.splice(i,1);
         } else if(b.y>canvas.height){ 
@@ -271,8 +308,9 @@ function updateBalls(){
             balls.splice(i,1);
         }
     }
-    // +10% speed every 10 points (compounded from base speed 2)
-    speed=2*Math.pow(1.10,Math.floor(score/10));
+    // +10% speed every 10 points (compounded from base speed 2), times temporary modifier
+    if(speedModifierUntil && performance.now()>speedModifierUntil){ speedModifierFactor=1; speedModifierUntil=0; }
+    speed=2*Math.pow(1.10,Math.floor(score/10))*speedModifierFactor;
     if(lives<=0 && !gameOver) showGameOver();
 }
 
@@ -312,7 +350,7 @@ function gameLoop(){
 
 // Reset game
 function resetGame(){ 
-    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextLifeThreshold=50;
+    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextGoldenThreshold=50; speedModifierFactor=1; speedModifierUntil=0;
     drawBasket(); drawHUD(); 
 }
 
