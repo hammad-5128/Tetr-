@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Color Catch</title>
+<style>
+body { margin:0; background:#111; font-family:sans-serif; overflow:hidden; color:#fff; display:flex; justify-content:center; align-items:center; height:100vh;}
+canvas { background:#000; border:4px solid #fff; border-radius:12px; display:block; }
+#flash { position:absolute; top:0; left:0; width:100%; height:100%; background:red; opacity:0; pointer-events:none; z-index:10; transition:0.2s;}
+#gameOverOverlay, #menuOverlay, #instructionOverlay, #homeOverlay, #nameOverlay {
+  position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; justify-content:center; align-items:center;
+  background: rgba(0,0,0,0.85); z-index:20; text-align:center; color:#fff;
+}
+#gameOverOverlay h1, #homeOverlay h1, #nameOverlay h1 { font-size:60px; color:#ff004c; margin-bottom:20px;}
+button {
+  margin:12px; padding:15px 50px; font-size:22px; border:none; border-radius:12px;
+  background:#007bff; color:#fff; cursor:pointer; transition:0.2s;
+}
+button:hover { transform:scale(1.1); }
+#menuBtn { 
+  position:absolute; top:10px; right:10px; width:40px; height:30px; z-index:25; cursor:pointer; 
+  display:none; /* ⚡ Default hidden */ 
+  flex-direction:column; justify-content:space-between; 
+}
+#menuBtn div { height:5px; background:white; border-radius:2px; }
+
+/* Name input styling */
+#playerNameInput {
+  padding:12px 16px; font-size:20px; border-radius:10px; border:2px solid #fff; outline:none; width:280px; text-align:center; background:#222; color:#fff;
+}
+#nameOverlay p { margin:8px 0 16px; font-size:18px; color:#ddd; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+<div id="flash"></div>
+<div id="menuBtn"><div></div><div></div><div></div></div>
+
+<!-- Name (first-time) Overlay -->
+<div id="nameOverlay">
+  <h1>Color Catch</h1>
+  <p>Enter your name to begin</p>
+  <input id="playerNameInput" type="text" maxlength="20" placeholder="Your name" />
+  <button id="saveNameBtn">Continue</button>
+</div>
+
+<!-- Home Overlay -->
+<div id="homeOverlay">
+  <h1>Color Catch</h1>
+  <button id="playBtn">Play</button>
+  <button id="homeInstructionBtn">Instructions</button>
+  <button id="homeScoreBtn">Scores</button>
+</div>
+
+<!-- Game Over Screen -->
+<div id="gameOverOverlay">
+  <h1>GAME OVER</h1>
+  <div id="finalScore">Score: 0</div>
+  <button id="restartBtn">Restart</button>
+  <button id="homeBtn">Home</button>
+  <button id="scoreBtn">Scores</button>
+</div>
+
+<!-- Menu Overlay -->
+<div id="menuOverlay">
+  <button id="resumeBtn">Resume</button>
+  <button id="menuRestartBtn">Restart</button>
+  <button id="menuHomeBtn">Home</button>
+  <button id="instructionBtn">Instructions</button>
+</div>
+
+<!-- Instructions Overlay -->
+<div id="instructionOverlay">
+  <h2>Instructions</h2>
+  <p>
+    Catch balls of the <b>same color</b> as the basket. First catch sets the basket color.<br>
+    Wrong catch or missed target color reduces a life.<br>
+    Game Over after 3 mistakes.<br>
+    <b>Mobile:</b> Drag to move<br>
+    <b>PC:</b> Arrow keys or A/D, Mouse moves basket, P = Pause
+  </p>
+  <button onclick="closeInstruction()">Back</button>
+</div>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+
+let basket={x:200,y:0,w:80,h:20,color:"white"};
+let balls=[];
+let colors=["red","blue","green","yellow"];
+let targetColor=null, score=0, lives=3, speed=2, gameOver=false;
+let paused=false, countdownActive=false, gameStarted=false;
+let lastScores=JSON.parse(localStorage.getItem("lastScores"))||[];
+let bestScore=parseInt(localStorage.getItem("bestScore"))||0;
+let nextLifeThreshold=50; // +1 life at 50, 100, 150, ...
+
+// Audio
+let pointSound=new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
+let mistakeSound=new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+let gameOverSound=new Audio("https://www.soundjay.com/misc/sounds/fail-trombone-01.mp3");
+
+// Flash
+const flashDiv=document.getElementById("flash");
+function flashScreen(){ flashDiv.style.opacity=0.6; setTimeout(()=>flashDiv.style.opacity=0,200); if(navigator.vibrate) navigator.vibrate(200); }
+
+// 9:16 canvas resize
+function resizeCanvas(){
+    let w=window.innerWidth, h=window.innerHeight;
+    let ratio=9/16;
+    if(w/h>ratio){ canvas.height=h; canvas.width=h*ratio; }
+    else{ canvas.width=w; canvas.height=w/ratio; }
+    canvas.style.position="absolute";
+    canvas.style.left=(window.innerWidth-canvas.width)/2+"px";
+    canvas.style.top=(window.innerHeight-canvas.height)/2+"px";
+    basket.y=canvas.height-100;
+    clampBasket();
+}
+window.addEventListener('resize',resizeCanvas);
+resizeCanvas();
+
+function clampBasket(){ 
+    if(basket.x<0) basket.x=0;
+    if(basket.x+basket.w>canvas.width) basket.x=canvas.width-basket.w;
+}
+
+// Draw
+function drawBasket(){ ctx.fillStyle=basket.color; ctx.fillRect(basket.x,basket.y,basket.w,basket.h);} 
+function drawBalls(){ balls.forEach(b=>{ ctx.beginPath();ctx.arc(b.x,b.y,10,0,Math.PI*2); ctx.fillStyle=b.color; ctx.fill(); }); }
+function spawnBall(){ balls.push({x:Math.random()*(canvas.width-20)+10,y:0,color:colors[Math.floor(Math.random()*colors.length)]}); }
+function drawHUD(){ ctx.fillStyle="white"; ctx.font="16px Arial"; ctx.fillText("Score: "+score,10,20); ctx.fillText("Lives: "+lives,10,40); ctx.fillText("Target: "+(targetColor||"None"),10,60); }
+
+// Game Over
+const gameOverOverlay=document.getElementById("gameOverOverlay");
+function showGameOver(){
+    gameOver=true;
+    gameOverOverlay.style.display="flex";
+    document.getElementById("finalScore").innerText="Score: "+score;
+    gameOverSound.play();
+    lastScores.unshift(score); if(lastScores.length>5) lastScores.pop(); 
+    if(score>bestScore) bestScore=score;
+    localStorage.setItem("lastScores",JSON.stringify(lastScores));
+    localStorage.setItem("bestScore",bestScore);
+}
+
+function checkLifeAward(){
+    while(score>=nextLifeThreshold){
+        lives++;
+        nextLifeThreshold+=50;
+    }
+}
+
+// Update
+function updateBalls(){
+    for(let b of balls) b.y+=speed;
+    for(let i=balls.length-1;i>=0;i--){
+        let b=balls[i];
+        if(b.y+10>=basket.y && b.y-10<=basket.y+basket.h && b.x+10>=basket.x && b.x-10<=basket.x+basket.w){
+            if(!targetColor){ targetColor=b.color; basket.color=b.color; score++; pointSound.play(); checkLifeAward(); }
+            else if(b.color===targetColor){ score++; pointSound.play(); checkLifeAward(); }
+            else { lives--; mistakeSound.play(); flashScreen(); }
+            balls.splice(i,1);
+        } else if(b.y>canvas.height){ 
+            if(targetColor!==null && b.color===targetColor){ lives--; mistakeSound.play(); flashScreen(); } 
+            balls.splice(i,1);
+        }
+    }
+    // +10% speed every 10 points (compounded from base speed 2)
+    speed=2*Math.pow(1.10,Math.floor(score/10));
+    if(lives<=0 && !gameOver) showGameOver();
+}
+
+// Countdown
+function startCountdown(callback){
+    countdownActive = true;
+    let count = 3;
+    const overlay = document.createElement('div');
+    overlay.style.position = 'absolute';
+    overlay.style.top='0'; overlay.style.left='0';
+    overlay.style.width='100%'; overlay.style.height='100%';
+    overlay.style.display='flex'; overlay.style.justifyContent='center'; overlay.style.alignItems='center';
+    overlay.style.background='rgba(0,0,0,0.6)'; overlay.style.color='white'; overlay.style.fontSize='80px'; overlay.style.zIndex='50';
+    overlay.innerText=count;
+    document.body.appendChild(overlay);
+    const interval = setInterval(()=>{
+        count--;
+        if(count>0){ overlay.innerText=count; }
+        else{
+            clearInterval(interval);
+            document.body.removeChild(overlay);
+            countdownActive=false;
+            if(callback) callback();
+        }
+    },1000);
+}
+
+// Loop
+function gameLoop(){ 
+    if(gameStarted && !gameOver && !paused && !countdownActive){ 
+        ctx.clearRect(0,0,canvas.width,canvas.height); 
+        if(Math.random()<0.02) spawnBall(); 
+        updateBalls(); drawBasket(); drawBalls(); drawHUD();
+    }
+    requestAnimationFrame(gameLoop);
+}
+
+// Reset game
+function resetGame(){ 
+    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextLifeThreshold=50;
+    drawBasket(); drawHUD(); 
+}
+
+// Controls
+document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowLeft"||e.key==="a") basket.x-=20; 
+    if(e.key==="ArrowRight"||e.key==="d") basket.x+=20; 
+    clampBasket();
+    if(e.key.toLowerCase()==="p" && gameStarted && !gameOver){ 
+        paused=!paused;
+        if(!paused) startCountdown(()=>{ paused=false; });
+    }
+});
+canvas.addEventListener("mousemove",e=>{ basket.x=e.offsetX-basket.w/2; clampBasket(); });
+
+// Touch
+let touchX=null;
+canvas.addEventListener("touchstart",e=>{ touchX=e.touches[0].clientX; });
+canvas.addEventListener("touchmove",e=>{
+    let dx=e.touches[0].clientX-touchX; basket.x+=dx; touchX=e.touches[0].clientX; clampBasket();
+});
+
+// Menu
+const menuBtn=document.getElementById("menuBtn");
+const menuOverlay=document.getElementById("menuOverlay");
+menuBtn.onclick=()=>{ paused=true; menuOverlay.style.display="flex"; };
+document.getElementById("resumeBtn").onclick=()=>{ menuOverlay.style.display="none"; startCountdown(()=>{ paused=false; }); };
+document.getElementById("menuRestartBtn").onclick=()=>{ menuOverlay.style.display="none"; gameOverOverlay.style.display="none"; resetGame(); startCountdown(()=>{ paused=false; gameStarted=true; }); };
+document.getElementById("menuHomeBtn").onclick=()=>{ location.reload(); };
+document.getElementById("instructionBtn").onclick=()=>{ menuOverlay.style.display="none"; document.getElementById("instructionOverlay").style.display="flex"; };
+function closeInstruction(){ document.getElementById("instructionOverlay").style.display="none"; menuOverlay.style.display="flex"; }
+
+// Game Over buttons
+document.getElementById("restartBtn").onclick=()=>{ gameOverOverlay.style.display="none"; resetGame(); startCountdown(()=>{ paused=false; gameStarted=true; }); };
+document.getElementById("homeBtn").onclick=()=>{ location.reload(); };
+document.getElementById("scoreBtn").onclick=()=>{ alert(`Best Score: ${bestScore}\nLast 5 Games:\n${lastScores.map((s,i)=>i+1+". "+s).join("\n")}`); };
+
+// Home Screen buttons
+function showHome(){
+  document.getElementById("homeOverlay").style.display="flex";
+}
+
+document.getElementById("playBtn").onclick=()=>{ 
+    document.getElementById("homeOverlay").style.display="none"; 
+    menuBtn.style.display="flex"; // ⚡ Game start hone ke baad menu show hoga
+    resetGame(); 
+    startCountdown(()=>{ paused=false; gameStarted=true; gameLoop(); }); 
+};
+document.getElementById("homeInstructionBtn").onclick=()=>{ 
+    document.getElementById("homeOverlay").style.display="none"; 
+    document.getElementById("instructionOverlay").style.display="flex"; 
+};
+document.getElementById("homeScoreBtn").onclick=()=>{ 
+    alert(`Best Score: ${bestScore}\nLast 5 Games:\n${lastScores.map((s,i)=>i+1+". "+s).join("\n")}`); 
+};
+
+// Name overlay logic (show once until storage cleared)
+const saveNameBtn=document.getElementById("saveNameBtn");
+const playerNameInput=document.getElementById("playerNameInput");
+function savePlayerName(){
+  const name=(playerNameInput.value||"").trim();
+  if(!name){ alert("Please enter your name."); return; }
+  localStorage.setItem("playerName", name);
+  document.getElementById("nameOverlay").style.display="none";
+  showHome();
+}
+saveNameBtn.onclick=savePlayerName;
+playerNameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') savePlayerName(); });
+
+// Start
+const storedName=localStorage.getItem("playerName");
+if(storedName){
+  showHome();
+} else {
+  document.getElementById("nameOverlay").style.display="flex";
+}
+</script>
+</body>
+</html>
