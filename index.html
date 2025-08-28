@@ -30,6 +30,10 @@ button:hover { transform:scale(1.1); }
   padding:12px 16px; font-size:20px; border-radius:10px; border:2px solid #fff; outline:none; width:280px; text-align:center; background:#222; color:#fff;
 }
 #nameOverlay p { margin:8px 0 16px; font-size:18px; color:#ddd; }
+
+/* Title effect */
+.titleWrap { width:80vw; max-width:900px; height:160px; margin-bottom:20px; }
+.titleCanvas { width:100%; height:100%; display:block; background:transparent; }
 </style>
 </head>
 <body>
@@ -40,7 +44,7 @@ button:hover { transform:scale(1.1); }
 
 <!-- Name (first-time) Overlay -->
 <div id="nameOverlay">
-  <h1>Color Catch</h1>
+  <div class="titleWrap"><canvas id="titleCanvasName" class="titleCanvas"></canvas></div>
   <p>Enter your name to begin</p>
   <input id="playerNameInput" type="text" maxlength="20" placeholder="Your name" />
   <button id="saveNameBtn">Continue</button>
@@ -48,7 +52,7 @@ button:hover { transform:scale(1.1); }
 
 <!-- Home Overlay -->
 <div id="homeOverlay">
-  <h1>Color Catch</h1>
+  <div class="titleWrap"><canvas id="titleCanvasHome" class="titleCanvas"></canvas></div>
   <button id="playBtn">Play</button>
   <button id="homeInstructionBtn">Instructions</button>
   <button id="homeScoreBtn">Scores</button>
@@ -105,6 +109,106 @@ let gameOverSound=new Audio("https://www.soundjay.com/misc/sounds/fail-trombone-
 // Flash
 const flashDiv=document.getElementById("flash");
 function flashScreen(){ flashDiv.style.opacity=0.6; setTimeout(()=>flashDiv.style.opacity=0,200); if(navigator.vibrate) navigator.vibrate(200); }
+
+// Title Effect: outline text "Color Catch" with balls visible only inside text
+class TitleEffect {
+  constructor(canvasEl){
+    this.canvas=canvasEl; this.ctx=this.canvas.getContext('2d');
+    this.text='Color Catch';
+    this.particles=[]; this.running=false; this.raf=0;
+    this.colors=["#ff004c","#00d1ff","#22ff66","#ffe600","#ff7b00"]; // vibrant
+    this.resize();
+    window.addEventListener('resize', ()=>{ if(this.running){ this.resize(); }});
+  }
+  resize(){
+    const rect=this.canvas.getBoundingClientRect();
+    const dpr=window.devicePixelRatio||1;
+    this.canvas.width=Math.max(1,Math.floor(rect.width*dpr));
+    this.canvas.height=Math.max(1,Math.floor(rect.height*dpr));
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.width=rect.width; this.height=rect.height;
+    this.prepareTextMask();
+    this.initParticles();
+  }
+  prepareTextMask(){
+    const ctx=this.ctx; const w=this.width; const h=this.height;
+    ctx.clearRect(0,0,w,h);
+    // Build path for text
+    ctx.save();
+    ctx.font=`${Math.floor(h*0.7)}px Impact, system-ui, sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    this.textX=w/2; this.textY=h/2 + h*0.05; // slight optical adjust
+    this.textStrokeWidth=Math.max(3, Math.floor(h*0.06));
+    // Create path for clipping
+    const p=new Path2D();
+    p.addPath(this.textPath(this.text, this.textX, this.textY));
+    this.textPathObj=p;
+    ctx.restore();
+  }
+  textPath(txt, x, y){
+    // Canvas doesn't provide path directly from text; use strokeText/fillText with clip
+    // We'll store only the position; actual clip uses fillText on the fly
+    const p=new Path2D();
+    p.rect(0,0,0,0); // placeholder
+    p._x=x; p._y=y; p._txt=txt;
+    return p;
+  }
+  initParticles(){
+    const count=Math.max(80, Math.floor(this.width*this.height/900));
+    this.particles=Array.from({length:count}).map(()=>({
+      x:Math.random()*this.width,
+      y:Math.random()*this.height,
+      r:Math.random()*3+2,
+      vx:(Math.random()*1.2+0.2)*(Math.random()<0.5?-1:1),
+      vy:(Math.random()*1.2+0.2)*(Math.random()<0.5?-1:1),
+      c:this.colors[(Math.random()*this.colors.length)|0]
+    }));
+  }
+  step(){
+    const ctx=this.ctx; const w=this.width; const h=this.height;
+    ctx.clearRect(0,0,w,h);
+    // Clip to text interior
+    ctx.save();
+    ctx.beginPath();
+    ctx.font=`${Math.floor(h*0.7)}px Impact, system-ui, sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#000';
+    ctx.rect(0,0,w,h); // ensure path context
+    ctx.clip();
+    // Use globalCompositeOperation with text as destination-in mask
+    // First draw particles background
+    for(const p of this.particles){
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<p.r||p.x>w-p.r) p.vx*=-1;
+      if(p.y<p.r||p.y>h-p.r) p.vy*=-1;
+      ctx.beginPath();
+      ctx.fillStyle=p.c;
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fill();
+    }
+    // Mask with text interior
+    ctx.globalCompositeOperation='destination-in';
+    ctx.fillStyle='#fff';
+    ctx.fillText(this.text, this.textX, this.textY);
+    ctx.restore();
+    // Draw text outline on top
+    ctx.save();
+    ctx.font=`${Math.floor(h*0.7)}px Impact, system-ui, sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.lineWidth=this.textStrokeWidth;
+    ctx.strokeStyle='#ffffff';
+    ctx.shadowColor='rgba(255,255,255,0.25)';
+    ctx.shadowBlur=this.textStrokeWidth*0.6;
+    ctx.strokeText(this.text, this.textX, this.textY);
+    ctx.restore();
+    if(this.running) this.raf=requestAnimationFrame(()=>this.step());
+  }
+  start(){ if(this.running) return; this.running=true; this.resize(); this.step(); }
+  stop(){ this.running=false; if(this.raf) cancelAnimationFrame(this.raf); }
+}
+
+// Instantiate for Name and Home overlays
+let titleFxName=null, titleFxHome=null;
 
 // 9:16 canvas resize
 function resizeCanvas(){
@@ -249,11 +353,18 @@ document.getElementById("scoreBtn").onclick=()=>{ alert(`Best Score: ${bestScore
 // Home Screen buttons
 function showHome(){
   document.getElementById("homeOverlay").style.display="flex";
+  // Start home title effect when visible
+  const homeCanvas=document.getElementById('titleCanvasHome');
+  if(homeCanvas){
+    if(!titleFxHome) titleFxHome=new TitleEffect(homeCanvas);
+    titleFxHome.start();
+  }
 }
 
 document.getElementById("playBtn").onclick=()=>{ 
     document.getElementById("homeOverlay").style.display="none"; 
     menuBtn.style.display="flex"; // ⚡ Game start hone ke baad menu show hoga
+    if(titleFxHome) titleFxHome.stop();
     resetGame(); 
     startCountdown(()=>{ paused=false; gameStarted=true; gameLoop(); }); 
 };
@@ -283,7 +394,13 @@ const storedName=localStorage.getItem("playerName");
 if(storedName){
   showHome();
 } else {
-  document.getElementById("nameOverlay").style.display="flex";
+  const nameOv=document.getElementById("nameOverlay");
+  nameOv.style.display="flex";
+  const nameCanvas=document.getElementById('titleCanvasName');
+  if(nameCanvas){
+    if(!titleFxName) titleFxName=new TitleEffect(nameCanvas);
+    titleFxName.start();
+  }
 }
 </script>
 </body>
