@@ -32,7 +32,7 @@ button:hover { transform:scale(1.1); }
 #nameOverlay p { margin:8px 0 16px; font-size:18px; color:#ddd; }
 
 /* Title effect */
-.titleWrap { width:84vw; max-width:900px; height:clamp(100px, 18vh, 180px); margin-bottom:20px; }
+.titleWrap { width:76vw; max-width:700px; height:clamp(64px, 10vh, 100px); margin-bottom:20px; }
 .titleCanvas { width:100%; height:100%; display:block; background:transparent; }
 </style>
 </head>
@@ -138,18 +138,18 @@ class TitleEffect {
     // Build path for text
     ctx.save();
     // Auto-size font to fit width with margins
-    const maxH=Math.floor(h*0.7);
+    const maxH=Math.floor(h*0.6);
     let fontSize=maxH;
     ctx.font=`${fontSize}px Impact, system-ui, sans-serif`;
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    const margin=w*0.06;
+    const margin=w*0.1;
     // Decrease font until width fits within (w - 2*margin)
     while(fontSize>20 && ctx.measureText(this.text).width > (w - 2*margin)){
       fontSize-=2; ctx.font=`${fontSize}px Impact, system-ui, sans-serif`;
     }
     ctx.textAlign='center'; ctx.textBaseline='middle';
     this.textX=w/2; this.textY=h/2 + h*0.05; // slight optical adjust
-    this.textStrokeWidth=Math.max(3, Math.floor(fontSize*0.12));
+    this.textStrokeWidth=Math.max(2, Math.floor(fontSize*0.10));
     // Create path for clipping
     const p=new Path2D();
     p.addPath(this.textPath(this.text, this.textX, this.textY));
@@ -183,9 +183,9 @@ class TitleEffect {
     ctx.beginPath();
     // Use same sizing as prepared
     // Recompute size similarly to avoid drift
-    const maxH=Math.floor(h*0.7);
+    const maxH=Math.floor(h*0.6);
     let fontSize=maxH; ctx.font=`${fontSize}px Impact, system-ui, sans-serif`;
-    const margin=w*0.06; while(fontSize>20 && ctx.measureText(this.text).width > (w - 2*margin)) { fontSize-=2; ctx.font=`${fontSize}px Impact, system-ui, sans-serif`; }
+    const margin=w*0.1; while(fontSize>20 && ctx.measureText(this.text).width > (w - 2*margin)) { fontSize-=2; ctx.font=`${fontSize}px Impact, system-ui, sans-serif`; }
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle='#000';
     ctx.rect(0,0,w,h); // ensure path context
@@ -208,10 +208,10 @@ class TitleEffect {
     ctx.restore();
     // Draw text outline on top
     ctx.save();
-    let fontSize2=Math.floor(h*0.7); ctx.font=`${fontSize2}px Impact, system-ui, sans-serif`;
-    const margin2=w*0.06; while(fontSize2>20 && ctx.measureText(this.text).width > (w - 2*margin2)) { fontSize2-=2; ctx.font=`${fontSize2}px Impact, system-ui, sans-serif`; }
+    let fontSize2=Math.floor(h*0.6); ctx.font=`${fontSize2}px Impact, system-ui, sans-serif`;
+    const margin2=w*0.1; while(fontSize2>20 && ctx.measureText(this.text).width > (w - 2*margin2)) { fontSize2-=2; ctx.font=`${fontSize2}px Impact, system-ui, sans-serif`; }
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.lineWidth=Math.max(3, Math.floor(fontSize2*0.12));
+    ctx.lineWidth=Math.max(2, Math.floor(fontSize2*0.10));
     ctx.strokeStyle='#ffffff';
     ctx.shadowColor='rgba(255,255,255,0.25)';
     ctx.shadowBlur=ctx.lineWidth*0.6;
