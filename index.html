@@ -53,6 +53,8 @@ button:hover { transform:scale(1.1); }
 <!-- Home Overlay -->
 <div id="homeOverlay">
   <div class="titleWrap"><canvas id="titleCanvasHome" class="titleCanvas"></canvas></div>
+  <div id="homePlayerName" style="font-size:18px; color:#ddd; margin:-6px 0 8px;">
+  </div>
   <button id="playBtn">Play</button>
   <button id="homeInstructionBtn">Instructions</button>
   <button id="homeControlBtn">Controls</button>
@@ -420,6 +422,9 @@ function showHome(){
     if(!titleFxHome) titleFxHome=new TitleEffect(homeCanvas);
     titleFxHome.start();
   }
+  const name=localStorage.getItem('playerName')||'';
+  const nameDiv=document.getElementById('homePlayerName');
+  if(nameDiv){ nameDiv.textContent = name ? `Player = "${name}"` : ''; }
 }
 
 document.getElementById("playBtn").onclick=()=>{ 
