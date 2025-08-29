@@ -8,7 +8,7 @@
 body { margin:0; background:#111; font-family:sans-serif; overflow:hidden; color:#fff; display:flex; justify-content:center; align-items:center; height:100vh;}
 canvas { background:#000; border:4px solid #fff; border-radius:12px; display:block; }
 #flash { position:absolute; top:0; left:0; width:100%; height:100%; background:red; opacity:0; pointer-events:none; z-index:10; transition:0.2s;}
-#gameOverOverlay, #menuOverlay, #instructionOverlay, #homeOverlay, #nameOverlay {
+#gameOverOverlay, #menuOverlay, #instructionOverlay, #homeOverlay, #nameOverlay, #controlOverlay {
   position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; justify-content:center; align-items:center;
   background: rgba(0,0,0,0.85); z-index:20; text-align:center; color:#fff;
 }
@@ -55,6 +55,7 @@ button:hover { transform:scale(1.1); }
   <div class="titleWrap"><canvas id="titleCanvasHome" class="titleCanvas"></canvas></div>
   <button id="playBtn">Play</button>
   <button id="homeInstructionBtn">Instructions</button>
+  <button id="homeControlBtn">Controls</button>
   <button id="homeScoreBtn">Scores</button>
 </div>
 
@@ -78,14 +79,21 @@ button:hover { transform:scale(1.1); }
 <!-- Instructions Overlay -->
 <div id="instructionOverlay">
   <h2>Instructions</h2>
-  <p>
-    Catch balls of the <b>same color</b> as the basket. First catch sets the basket color.<br>
-    Wrong catch or missed target color reduces a life.<br>
-    Game Over after 3 mistakes.<br>
-    <b>Mobile:</b> Drag to move<br>
-    <b>PC:</b> Arrow keys or A/D, Mouse moves basket, P = Pause
+  <p style="max-width: 800px; line-height:1.6; padding: 0 20px;">
+    You start with 3 lives. The first ball you catch decides your bar’s color — from then on, catch only the same color to score points. Every 50 points gives you +1 extra life. Be careful, balls will get faster and new colors will appear. Can you reach 100 points and become the Color Catch master? 🌟
   </p>
   <button onclick="closeInstruction()">Back</button>
+</div>
+
+<!-- Controls Overlay -->
+<div id="controlOverlay">
+  <h2>Controls</h2>
+  <div style="max-width: 900px; text-align:left; line-height:1.6; padding: 0 20px;">
+    <p><b>On mobile:</b> slide your finger left or right on the screen to move the bar quickly and catch the correct balls.</p>
+    <p><b>On PC:</b> use the Arrow Keys or the A/D keys to move left and right smoothly. You can also use your mouse — just move it sideways, and the bar will follow.</p>
+    <p><b>Pause:</b> Press P anytime to pause and resume the game.</p>
+  </div>
+  <button onclick="closeControls()">Back</button>
 </div>
 
 <script>
@@ -396,6 +404,7 @@ document.getElementById("menuRestartBtn").onclick=()=>{ menuOverlay.style.displa
 document.getElementById("menuHomeBtn").onclick=()=>{ location.reload(); };
 document.getElementById("instructionBtn").onclick=()=>{ menuOverlay.style.display="none"; document.getElementById("instructionOverlay").style.display="flex"; };
 function closeInstruction(){ document.getElementById("instructionOverlay").style.display="none"; menuOverlay.style.display="flex"; }
+function closeControls(){ document.getElementById("controlOverlay").style.display="none"; document.getElementById("homeOverlay").style.display="flex"; if(titleFxHome){ titleFxHome.start(); } }
 
 // Game Over buttons
 document.getElementById("restartBtn").onclick=()=>{ gameOverOverlay.style.display="none"; resetGame(); startCountdown(()=>{ paused=false; gameStarted=true; }); };
@@ -424,6 +433,11 @@ document.getElementById("homeInstructionBtn").onclick=()=>{
     document.getElementById("homeOverlay").style.display="none"; 
     if(titleFxHome) titleFxHome.stop();
     document.getElementById("instructionOverlay").style.display="flex"; 
+};
+document.getElementById("homeControlBtn").onclick=()=>{
+    document.getElementById("homeOverlay").style.display="none";
+    if(titleFxHome) titleFxHome.stop();
+    document.getElementById("controlOverlay").style.display="flex";
 };
 document.getElementById("homeScoreBtn").onclick=()=>{ 
     alert(`Best Score: ${bestScore}\nLast 5 Games:\n${lastScores.map((s,i)=>i+1+". "+s).join("\n")}`); 
