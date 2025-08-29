@@ -104,7 +104,10 @@ const ctx=canvas.getContext("2d");
 
 let basket={x:200,y:0,w:80,h:20,color:"white"};
 let balls=[];
-let colors=["red","blue","green","yellow"];
+const baseColors=["red","blue","green","yellow"];
+const extraColors=["purple","cyan"];
+let colors=[...baseColors];
+let addedExtraColors=false;
 let targetColor=null, score=0, lives=3, speed=2, gameOver=false;
 let paused=false, countdownActive=false, gameStarted=false;
 let lastScores=JSON.parse(localStorage.getItem("lastScores"))||[];
@@ -304,6 +307,13 @@ function checkGoldenSpawn(){
     }
 }
 
+function checkDifficulty(){
+    if(!addedExtraColors && score>=50){
+        colors=[...baseColors, ...extraColors];
+        addedExtraColors=true;
+    }
+}
+
 // Update
 function updateBalls(){
     for(let b of balls) b.y+=speed;
@@ -323,8 +333,8 @@ function updateBalls(){
                     checkGoldenSpawn();
                 }
                 pointSound.play();
-            } else if(!targetColor){ targetColor=b.color; basket.color=b.color; score++; pointSound.play(); checkGoldenSpawn(); }
-            else if(b.color===targetColor){ score++; pointSound.play(); checkGoldenSpawn(); }
+            } else if(!targetColor){ targetColor=b.color; basket.color=b.color; score++; pointSound.play(); checkGoldenSpawn(); checkDifficulty(); }
+            else if(b.color===targetColor){ score++; pointSound.play(); checkGoldenSpawn(); checkDifficulty(); }
             else { lives--; mistakeSound.play(); flashScreen(); }
             balls.splice(i,1);
         } else if(b.y>canvas.height){ 
@@ -374,7 +384,7 @@ function gameLoop(){
 
 // Reset game
 function resetGame(){ 
-    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextGoldenThreshold=50; speedModifierFactor=1; speedModifierUntil=0;
+    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextGoldenThreshold=50; speedModifierFactor=1; speedModifierUntil=0; colors=[...baseColors]; addedExtraColors=false;
     drawBasket(); drawHUD(); 
 }
 
