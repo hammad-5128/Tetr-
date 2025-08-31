@@ -113,6 +113,8 @@ let paused=false, countdownActive=false, gameStarted=false;
 let lastScores=JSON.parse(localStorage.getItem("lastScores"))||[];
 let bestScore=parseInt(localStorage.getItem("bestScore"))||0;
 let nextGoldenThreshold=50; // Golden ball at 50, 100, 150, ...
+let speedModifierFactor=1; // temporary slowdown multiplier (<=1)
+let speedModifierUntil=0; // timestamp until which slowdown applies
 
 // Audio
 let pointSound=new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
@@ -312,6 +314,12 @@ function checkDifficulty(){
     }
 }
 
+function applyTemporarySlowdown(percent=15, durationMs=4000){
+    const factor=Math.max(0.5, 1 - (percent/100));
+    speedModifierFactor=Math.min(speedModifierFactor, factor);
+    speedModifierUntil=Math.max(speedModifierUntil, performance.now()+durationMs);
+}
+
 // Update
 function updateBalls(){
     for(let b of balls) b.y+=speed;
@@ -330,8 +338,9 @@ function updateBalls(){
             balls.splice(i,1);
         }
     }
-    // +10% speed every 10 points (compounded from base speed 2)
-    speed=2*Math.pow(1.10,Math.floor(score/10));
+    // +10% speed every 10 points (compounded from base speed 2), with temporary slowdown modifier
+    if(speedModifierUntil && performance.now()>speedModifierUntil){ speedModifierFactor=1; speedModifierUntil=0; }
+    speed=2*Math.pow(1.10,Math.floor(score/10))*speedModifierFactor;
     if(lives<=0 && !gameOver) showGameOver();
 }
 
@@ -371,7 +380,7 @@ function gameLoop(){
 
 // Reset game
 function resetGame(){ 
-    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextGoldenThreshold=50; colors=[...baseColors]; addedExtraColors=false;
+    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextGoldenThreshold=50; colors=[...baseColors]; addedExtraColors=false; speedModifierFactor=1; speedModifierUntil=0;
     drawBasket(); drawHUD(); 
 }
 
