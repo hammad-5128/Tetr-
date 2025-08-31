@@ -113,8 +113,6 @@ let paused=false, countdownActive=false, gameStarted=false;
 let lastScores=JSON.parse(localStorage.getItem("lastScores"))||[];
 let bestScore=parseInt(localStorage.getItem("bestScore"))||0;
 let nextGoldenThreshold=50; // Golden ball at 50, 100, 150, ...
-let speedModifierFactor=1; // temporary slowdowns multiply base speed
-let speedModifierUntil=0; // timestamp (ms) until which modifier is active
 
 // Audio
 let pointSound=new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
@@ -321,17 +319,7 @@ function updateBalls(){
         let b=balls[i];
         if(b.y+10>=basket.y && b.y-10<=basket.y+basket.h && b.x+10>=basket.x && b.x-10<=basket.x+basket.w){
             if(b.special==='gold'){
-                // Random effect: +1 life OR slow speed by 15% for 6s OR +10 points
-                const roll=Math.random();
-                if(roll<0.34){
-                    lives++;
-                } else if(roll<0.67){
-                    speedModifierFactor*=0.85; // slow 15%
-                    speedModifierUntil=performance.now()+6000; // 6 seconds
-                } else {
-                    score+=10;
-                    checkGoldenSpawn();
-                }
+                lives++;
                 pointSound.play();
             } else if(!targetColor){ targetColor=b.color; basket.color=b.color; score++; pointSound.play(); checkGoldenSpawn(); checkDifficulty(); }
             else if(b.color===targetColor){ score++; pointSound.play(); checkGoldenSpawn(); checkDifficulty(); }
@@ -342,9 +330,8 @@ function updateBalls(){
             balls.splice(i,1);
         }
     }
-    // +10% speed every 10 points (compounded from base speed 2), times temporary modifier
-    if(speedModifierUntil && performance.now()>speedModifierUntil){ speedModifierFactor=1; speedModifierUntil=0; }
-    speed=2*Math.pow(1.10,Math.floor(score/10))*speedModifierFactor;
+    // +10% speed every 10 points (compounded from base speed 2)
+    speed=2*Math.pow(1.10,Math.floor(score/10));
     if(lives<=0 && !gameOver) showGameOver();
 }
 
@@ -384,7 +371,7 @@ function gameLoop(){
 
 // Reset game
 function resetGame(){ 
-    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextGoldenThreshold=50; speedModifierFactor=1; speedModifierUntil=0; colors=[...baseColors]; addedExtraColors=false;
+    score=0; lives=3; targetColor=null; basket.color="white"; balls=[]; speed=2; gameOver=false; paused=true; nextGoldenThreshold=50; colors=[...baseColors]; addedExtraColors=false;
     drawBasket(); drawHUD(); 
 }
 
